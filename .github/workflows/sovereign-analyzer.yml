@@ -4,34 +4,37 @@ on:
   push:
     branches: [ main ]
     paths:
-      - '**.py' # Only analyze Python files for now
+      - '**.py'
 
 jobs:
   analyze-and-document:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Needed to push the new READMEs
+      contents: write
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # Fetch previous commit to compare changes
+          fetch-depth: 0 # Fetch all history so we can compare branches/commits
 
       - name: Set up Python
-        uses: uses/setup-python@v4
+        uses: actions/setup-python@v5  # <--- FIXED TYPO HERE
         with:
           python-version: '3.10'
 
       - name: Identify New Files
         id: new_files
         run: |
-          # Get list of added files only (Filter A)
-          echo "files=$(git diff --name-only --diff-filter=A HEAD^ HEAD | grep '\.py$' | xargs)" >> $GITHUB_OUTPUT
+          # Use git diff to find files added in the last commit
+          FILES=$(git diff --name-only --diff-filter=A HEAD^ HEAD | grep '\.py$' | xargs)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Found new files: $FILES"
 
       - name: Run Sovereign Decomposer
         if: steps.new_files.outputs.files != ''
         run: |
+          # Ensure the script directory exists
           python .github/scripts/analyze_new_code.py ${{ steps.new_files.outputs.files }}
 
       - name: Commit and Push Documentation
@@ -39,6 +42,7 @@ jobs:
         run: |
           git config --global user.name "Sovereign-Bridge-Bot"
           git config --global user.email "bot@sovereign.local"
-          git add **/README_SOVEREIGN.md
-          git commit -m "docs: auto-generate sovereign building block manifests"
+          git add "**/README_SOVEREIGN.md"
+          # Only commit if there are changes to avoid erroring on empty commits
+          git diff --quiet && git diff --staged --quiet || git commit -m "docs: auto-generate sovereign building block manifests"
           git push
