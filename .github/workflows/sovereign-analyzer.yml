@@ -1,0 +1,44 @@
+name: Sovereign Code Analyzer
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.py' # Only analyze Python files for now
+
+jobs:
+  analyze-and-document:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to push the new READMEs
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # Fetch previous commit to compare changes
+
+      - name: Set up Python
+        uses: uses/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Identify New Files
+        id: new_files
+        run: |
+          # Get list of added files only (Filter A)
+          echo "files=$(git diff --name-only --diff-filter=A HEAD^ HEAD | grep '\.py$' | xargs)" >> $GITHUB_OUTPUT
+
+      - name: Run Sovereign Decomposer
+        if: steps.new_files.outputs.files != ''
+        run: |
+          python .github/scripts/analyze_new_code.py ${{ steps.new_files.outputs.files }}
+
+      - name: Commit and Push Documentation
+        if: steps.new_files.outputs.files != ''
+        run: |
+          git config --global user.name "Sovereign-Bridge-Bot"
+          git config --global user.email "bot@sovereign.local"
+          git add **/README_SOVEREIGN.md
+          git commit -m "docs: auto-generate sovereign building block manifests"
+          git push
