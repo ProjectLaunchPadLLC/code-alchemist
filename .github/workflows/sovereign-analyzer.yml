@@ -16,25 +16,36 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch all history so we can compare branches/commits
+          fetch-depth: 0 # Fetches full history for accurate diff analysis
 
       - name: Set up Python
-        uses: actions/setup-python@v5  # <--- FIXED TYPO HERE
+        uses: actions/setup-python@v5 # FIXED: Changed from 'uses/' to 'actions/'
         with:
           python-version: '3.10'
 
       - name: Identify New Files
         id: new_files
         run: |
-          # Use git diff to find files added in the last commit
-          FILES=$(git diff --name-only --diff-filter=A HEAD^ HEAD | grep '\.py$' | xargs)
+          # Detects only newly ADDED files (Filter A) in the latest push
+          FILES=$(git diff --name-only --diff-filter=A HEAD^ HEAD | grep '\.py$' | xargs || echo "")
           echo "files=$FILES" >> $GITHUB_OUTPUT
           echo "Found new files: $FILES"
 
       - name: Run Sovereign Decomposer
         if: steps.new_files.outputs.files != ''
         run: |
-          # Ensure the script directory exists
+          # Executes the Python analyzer script
+          python .github/scripts/analyze_new_code.py ${{ steps.new_files.outputs.files }}
+
+      - name: Commit and Push Documentation
+        if: steps.new_files.outputs.files != ''
+        run: |
+          git config --global user.name "Sovereign-Bridge-Bot"
+          git config --global user.email "bot@sovereign.local"
+          git add "**/README_SOVEREIGN.md"
+          # Only commit if actual changes exist to prevent workflow failure
+          git diff --quiet && git diff --staged --quiet || git commit -m "docs: auto-generate sovereign building block manifests"
+          git push          # Ensure the script directory exists
           python .github/scripts/analyze_new_code.py ${{ steps.new_files.outputs.files }}
 
       - name: Commit and Push Documentation
